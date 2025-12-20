@@ -20,7 +20,7 @@ class _TernakListScreenState extends State<TernakListScreen> {
     _fetchTernak();
   }
 
-  // Fungsi untuk memicu pembaruan data dari API
+  // Fungsi untuk mengambil data terbaru dari API
   void _fetchTernak() {
     final data = apiService.fetchTernak();
     setState(() {
@@ -28,17 +28,17 @@ class _TernakListScreenState extends State<TernakListScreen> {
     });
   }
 
-  // Fungsi Konfirmasi Hapus dengan penanganan State yang aman
+  // Fungsi Konfirmasi Hapus yang aman dari error Deactivated Widget
   void _confirmDelete(Ternak ternak) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (BuildContext dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text("Hapus Data?"),
         content: Text("Apakah Anda yakin ingin menghapus ternak dengan kode ${ternak.kodeTag}?"),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text("Batal", style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
@@ -48,12 +48,12 @@ class _TernakListScreenState extends State<TernakListScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             onPressed: () async {
-              // Simpan navigator sebelum proses async jika diperlukan
+              // 1. Simpan referensi Navigator dan Messenger sebelum proses async
               final navigator = Navigator.of(context, rootNavigator: true);
-
-              // 1. Tutup dialog konfirmasi
-              navigator.pop(); 
+              final messenger = ScaffoldMessenger.of(context);
               
+              Navigator.pop(dialogContext); // Tutup dialog konfirmasi
+
               // 2. Tampilkan loading overlay
               showDialog(
                 context: context,
@@ -65,34 +65,38 @@ class _TernakListScreenState extends State<TernakListScreen> {
                 // 3. Eksekusi hapus di API
                 bool success = await apiService.deleteTernak(ternak.idTernak!);
                 
-                // PERIKSA: Apakah widget masih aktif sebelum memanggil navigator/messenger
+                // 4. Periksa apakah widget masih aktif (mounted) sebelum menggunakan context
                 if (!mounted) return;
-
-                // 4. Tutup loading overlay
-                // Menggunakan navigator yang sudah disimpan atau Navigator.of(context) yang baru dipastikan aman
-                Navigator.of(context, rootNavigator: true).pop();
+                
+                // 5. Tutup loading overlay menggunakan referensi yang disimpan
+                navigator.pop(); 
 
                 if (success) {
-                  _fetchTernak(); 
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  _fetchTernak(); // Refresh daftar data
+                  messenger.showSnackBar(
                     const SnackBar(
                       content: Text("Data berhasil dihapus"), 
                       backgroundColor: Colors.green,
+                      behavior: SnackBarBehavior.floating,
                     ),
                   );
                 } else {
-                  throw Exception("Gagal menghapus data");
+                  throw Exception("Gagal menghapus data dari server");
                 }
               } catch (e) {
-                // PERIKSA kembali sebelum menutup loading jika terjadi error
-                if (!mounted) return;
-                Navigator.of(context, rootNavigator: true).pop();
-                
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text("Error: $e"), backgroundColor: Colors.red),
-                );
+                // Pastikan loading tertutup jika terjadi error
+                if (mounted) {
+                  Navigator.of(context, rootNavigator: true).pop();
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text("Terjadi kesalahan: ${e.toString()}"), 
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
               }
             },
+            child: const Text("Hapus"),
           ),
         ],
       ),
@@ -104,26 +108,14 @@ class _TernakListScreenState extends State<TernakListScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAF8),
       body: RefreshIndicator(
-        onRefresh: () async {
-          _fetchTernak();
-        },
+        onRefresh: () async => _fetchTernak(),
         child: FutureBuilder<List<Ternak>>(
           future: futureTernak,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             } else if (snapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 60, color: Colors.red),
-                    const SizedBox(height: 10),
-                    Text('Terjadi kesalahan: ${snapshot.error}'),
-                    ElevatedButton(onPressed: _fetchTernak, child: const Text("Coba Lagi")),
-                  ],
-                ),
-              );
+              return Center(child: Text('Error: ${snapshot.error}'));
             } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
               return _buildEmptyState();
             } else {
@@ -142,7 +134,7 @@ class _TernakListScreenState extends State<TernakListScreen> {
             context,
             MaterialPageRoute(builder: (context) => const TernakFormScreen()),
           );
-          if (res == true) _fetchTernak(); // Refresh jika ada data baru
+          if (res == true) _fetchTernak(); // Refresh jika kembali dari form
         },
         label: const Text("Tambah Ternak", style: TextStyle(fontWeight: FontWeight.bold)),
         icon: const Icon(Icons.add_rounded),
@@ -151,9 +143,9 @@ class _TernakListScreenState extends State<TernakListScreen> {
   }
 
   Widget _buildEmptyState() {
-    return ListView( // Gunakan ListView agar Pull-to-Refresh tetap aktif saat kosong
+    return ListView(
       children: [
-        SizedBox(height: MediaQuery.of(context).size.height * 0.3),
+        SizedBox(height: MediaQuery.of(context).size.height * 0.25),
         Center(
           child: Column(
             children: [
@@ -161,7 +153,7 @@ class _TernakListScreenState extends State<TernakListScreen> {
                 opacity: 0.3,
                 child: Image.asset(
                   'assets/logo_app.png',
-                  width: 120,
+                  width: 150,
                   errorBuilder: (c, e, s) => const Icon(Icons.pets, size: 80, color: Colors.grey),
                 ),
               ),
