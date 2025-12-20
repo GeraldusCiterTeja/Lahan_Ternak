@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'ternak_list_screen.dart';
 import 'kesehatan_list_screen.dart';
+import 'pakan_list_screen.dart';
+import 'reproduksi_list_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,8 +17,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final List<Widget> _screens = [
     const TernakListScreen(),
     const KesehatanListScreen(),
-    const Center(child: Text("Modul Pakan - Segera Hadir")),
-    const Center(child: Text("Modul Reproduksi - Segera Hadir")),
+    const PakanListScreen(),
+    const ReproduksiListScreen(),
   ];
 
   @override

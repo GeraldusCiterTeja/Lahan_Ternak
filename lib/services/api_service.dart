@@ -66,20 +66,13 @@ class ApiService {
   }
 
   // FUNGSI 4: DELETE - Menghapus data ternak
-  Future<bool> deleteTernak(int idTernak) async {
-    final response = await http.delete(
+  Future<bool> deleteTernak(int id) async {
+    final response = await http.post(
       Uri.parse('$_baseUrl/ternak_delete.php'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode({'id_ternak': idTernak}), 
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({"id_ternak": id}),
     );
-    
-    if (response.statusCode == 200) {
-      final jsonResponse = jsonDecode(response.body);
-      return jsonResponse['success'] == true;
-    }
-    return false;
+    return jsonDecode(response.body)['success'] == true;
   }
 
   // Tambahkan import model kesehatan nanti
@@ -107,6 +100,40 @@ class ApiService {
   Future<bool> createKesehatan(Map<String, dynamic> data) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/kesehatan_create.php'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(data),
+    );
+    return jsonDecode(response.body)['success'] == true;
+  }
+
+  Future<List<dynamic>> fetchPakan() async {
+    final response = await http.get(Uri.parse('$_baseUrl/pakan_read.php'));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['data'] ?? [];
+    }
+    return [];
+  }
+
+  Future<bool> createPakan(Map<String, dynamic> data) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/pakan_create.php'),
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode(data),
+    );
+    return jsonDecode(response.body)['success'] == true;
+  }
+
+  Future<List<dynamic>> fetchReproduksi() async {
+    final response = await http.get(Uri.parse('$_baseUrl/reproduksi_read.php'));
+    if (response.statusCode == 200) {
+      return jsonDecode(response.body)['data'] ?? [];
+    }
+    return [];
+  }
+
+  Future<bool> createReproduksi(Map<String, dynamic> data) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/reproduksi_create.php'),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode(data),
     );
