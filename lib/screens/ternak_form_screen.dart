@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../models/ternak.dart';
 import '../services/api_service.dart';
 
 class TernakFormScreen extends StatefulWidget {
-  final Ternak? ternak;
-  const TernakFormScreen({super.key, this.ternak});
+  const TernakFormScreen({super.key});
 
   @override
   State<TernakFormScreen> createState() => _TernakFormScreenState();
@@ -15,184 +13,234 @@ class _TernakFormScreenState extends State<TernakFormScreen> {
   final _formKey = GlobalKey<FormState>();
   final ApiService apiService = ApiService();
 
-  late TextEditingController _kodeTagController;
-  late TextEditingController _jenisTernakController;
-  late TextEditingController _tanggalLahirController;
-  late TextEditingController _silsilahController;
+  // --- CONTROLLERS ---
+  final TextEditingController _kodeTagController = TextEditingController();
+  final TextEditingController _jenisTernakController = TextEditingController(); // KETIK MANUAL
+  final TextEditingController _jenisKelaminController = TextEditingController(); // DROPDOWN
   
-  String _jenisKelamin = 'Jantan';
-  String _status = 'Aktif';
+  final TextEditingController _faseController = TextEditingController(); // DROPDOWN
+  final TextEditingController _beratController = TextEditingController();
+  final TextEditingController _tglLahirController = TextEditingController(); // DATE PICKER
+  final TextEditingController _silsilahController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    final isEditing = widget.ternak != null;
-    _kodeTagController = TextEditingController(text: isEditing ? widget.ternak!.kodeTag : '');
-    _jenisTernakController = TextEditingController(text: isEditing ? widget.ternak!.jenisTernak : '');
-    _tanggalLahirController = TextEditingController(text: isEditing ? widget.ternak!.tanggalLahir : '');
-    _silsilahController = TextEditingController(text: isEditing ? widget.ternak!.silsilah : '');
-    if (isEditing) {
-      _jenisKelamin = widget.ternak!.jenisKelamin;
-      _status = widget.ternak!.status;
-    }
-  }
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _kodeTagController.dispose();
     _jenisTernakController.dispose();
-    _tanggalLahirController.dispose();
+    _jenisKelaminController.dispose();
+    _faseController.dispose();
+    _beratController.dispose();
+    _tglLahirController.dispose();
     _silsilahController.dispose();
     super.dispose();
   }
 
-  // --- FUNGSI SAVE TERNAK ---
-  void _saveTernak() async {
-    // 1. Validasi Input
-    if (!_formKey.currentState!.validate()) return;
-    
-    // 2. Tampilkan Loading
-    showDialog(
+  // --- FUNGSI PEMILIH TANGGAL (DATE PICKER) ---
+  Future<void> _selectDate(BuildContext context) async {
+    DateTime? picked = await showDatePicker(
       context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2000), 
+      lastDate: DateTime.now(),
     );
 
-    // 3. Siapkan Objek Data
-    final dataTernak = Ternak(
-      idTernak: widget.ternak?.idTernak, 
-      kodeTag: _kodeTagController.text,
-      jenisTernak: _jenisTernakController.text,
-      tanggalLahir: _tanggalLahirController.text,
-      silsilah: _silsilahController.text.isEmpty ? null : _silsilahController.text,
-      jenisKelamin: _jenisKelamin,
-      status: _status,
-    );
-
-    bool success;
-    // 4. Panggil API (Create atau Update)
-    if (widget.ternak == null) {
-      success = await apiService.createTernak(dataTernak);
-    } else {
-      success = await apiService.updateTernak(dataTernak);
-    }
-
-    if (!mounted) return;
-    Navigator.pop(context); // Tutup Loading
-
-    // 5. Tangani Hasil Respon
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Berhasil ${widget.ternak == null ? 'menambahkan' : 'memperbarui'} data!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.pop(context, true); // Kembali ke List & Refresh
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Gagal menyimpan data ke server.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+    if (picked != null) {
+      setState(() {
+        // Format ke YYYY-MM-DD
+        String formattedDate = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+        _tglLahirController.text = formattedDate;
+      });
     }
   }
 
-  // Dekorasi Input Modern
-  InputDecoration _inputDecor(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon, color: const Color(0xFF2E7D32)),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-      filled: true,
-      fillColor: Colors.white,
-    );
+  Future<void> _submitForm() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isLoading = true);
+
+      Ternak dataInput = Ternak(
+        kodeTag: _kodeTagController.text,
+        jenisTernak: _jenisTernakController.text, // Input Manual
+        jenisKelamin: _jenisKelaminController.text, // Pilihan
+        status: 'Aktif',
+        
+        fase: _faseController.text.isEmpty ? '-' : _faseController.text, // Pilihan
+        berat: _beratController.text.isEmpty ? '0' : _beratController.text,
+        tanggalLahir: _tglLahirController.text.isEmpty ? '-' : _tglLahirController.text,
+        silsilah: _silsilahController.text.isEmpty ? '-' : _silsilahController.text,
+      );
+
+      final success = await apiService.createTernak(dataInput);
+
+      setState(() => _isLoading = false);
+
+      if (!mounted) return;
+
+      if (success) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ternak berhasil ditambahkan!'), backgroundColor: Colors.green),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal menyimpan data'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isEditing = widget.ternak != null;
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Data Ternak' : 'Tambah Ternak'),
+        title: const Text("Tambah Data Ternak"),
+        backgroundColor: const Color(0xFF2E7D32),
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      TextFormField(
-                        controller: _kodeTagController,
-                        decoration: _inputDecor('Kode Tag', Icons.qr_code_scanner_rounded),
-                        validator: (v) => v!.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      const SizedBox(height: 18),
-                      TextFormField(
-                        controller: _jenisTernakController,
-                        decoration: _inputDecor('Jenis Ternak', Icons.pets_rounded),
-                        validator: (v) => v!.isEmpty ? 'Wajib diisi' : null,
-                      ),
-                      const SizedBox(height: 18),
-                      TextFormField(
-                        controller: _tanggalLahirController,
-                        readOnly: true,
-                        decoration: _inputDecor('Tanggal Lahir', Icons.calendar_today_rounded),
-                        onTap: () async {
-                          DateTime? picked = await showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime.now(),
-                          );
-                          if (picked != null) {
-                            setState(() => _tanggalLahirController.text = DateFormat('yyyy-MM-dd').format(picked));
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 18),
-                      // Ikon Jenis Kelamin yang Relevan
-                      DropdownButtonFormField<String>(
-                        value: _jenisKelamin,
-                        decoration: _inputDecor('Jenis Kelamin', Icons.transgender_rounded),
-                        items: ['Jantan', 'Betina'].map((s) => DropdownMenuItem(
-                          value: s, child: Text(s)
-                        )).toList(),
-                        onChanged: (v) => setState(() => _jenisKelamin = v!),
-                      ),
-                    ],
-                  ),
-                ),
+              const Text("Informasi Wajib", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 10),
+              
+              _buildTextField("Kode Tag (cth: SP-001)", _kodeTagController, icon: Icons.qr_code),
+              const SizedBox(height: 10),
+              
+              // KEMBALI KE INPUT MANUAL
+              _buildTextField("Jenis Ternak (cth: Sapi Limosin)", _jenisTernakController, icon: Icons.pets),
+              const SizedBox(height: 10),
+
+              // TETAP DROPDOWN (PILIHAN)
+              _buildDropdownField(
+                label: "Jenis Kelamin", 
+                controller: _jenisKelaminController, 
+                items: ["Jantan", "Betina"], 
+                icon: Icons.transgender
               ),
+              
+              const SizedBox(height: 20),
+              const Divider(),
+              const Text("Informasi Tambahan (Opsional)", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              const SizedBox(height: 10),
+
+              // TETAP DROPDOWN (PILIHAN)
+              _buildDropdownField(
+                label: "Fase Ternak", 
+                controller: _faseController, 
+                items: ["Starter", "Grower", "Finisher"], 
+                icon: Icons.timeline,
+                isRequired: false
+              ),
+              const SizedBox(height: 10),
+
+              _buildTextField("Berat Awal (kg)", _beratController, icon: Icons.monitor_weight, isNumber: true, isRequired: false),
+              const SizedBox(height: 10),
+
+              // TETAP KALENDER
+              _buildDatePickerField("Tanggal Lahir", _tglLahirController, context),
+              
+              const SizedBox(height: 10),
+              _buildTextField("Silsilah / Indukan", _silsilahController, icon: Icons.family_restroom, isRequired: false),
+
               const SizedBox(height: 30),
-              // Tombol Simpan/Tambah Dinamis
+              
               SizedBox(
                 width: double.infinity,
-                height: 55,
+                height: 50,
                 child: ElevatedButton(
+                  onPressed: _isLoading ? null : _submitForm,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF2E7D32),
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                   ),
-                  onPressed: _saveTernak, 
-                  child: Text(
-                    isEditing ? 'SIMPAN PERUBAHAN' : 'TAMBAH TERNAK', 
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)
-                  ),
+                  child: _isLoading 
+                    ? const CircularProgressIndicator(color: Colors.white) 
+                    : const Text("SIMPAN TERNAK", style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // --- WIDGET HELPER: TEXT FIELD BIASA ---
+  Widget _buildTextField(String label, TextEditingController controller, {required IconData icon, bool isRequired = true, bool isNumber = false}) {
+    return TextFormField(
+      controller: controller,
+      keyboardType: isNumber ? TextInputType.number : TextInputType.text,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        filled: true,
+        fillColor: Colors.grey[50],
+      ),
+      validator: isRequired
+          ? (value) {
+              if (value == null || value.isEmpty) return '$label tidak boleh kosong';
+              return null;
+            }
+          : null,
+    );
+  }
+
+  // --- WIDGET HELPER: DROPDOWN (PILIHAN) ---
+  Widget _buildDropdownField({
+    required String label, 
+    required TextEditingController controller, 
+    required List<String> items, 
+    required IconData icon,
+    bool isRequired = true
+  }) {
+    return DropdownButtonFormField<String>(
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        filled: true,
+        fillColor: Colors.grey[50],
+      ),
+      value: controller.text.isNotEmpty && items.contains(controller.text) ? controller.text : null,
+      items: items.map((String item) {
+        return DropdownMenuItem<String>(
+          value: item,
+          child: Text(item),
+        );
+      }).toList(),
+      onChanged: (String? newValue) {
+        setState(() {
+          controller.text = newValue ?? '';
+        });
+      },
+      validator: isRequired
+          ? (value) {
+              if (value == null || value.isEmpty) return 'Pilih $label';
+              return null;
+            }
+          : null,
+    );
+  }
+
+  // --- WIDGET HELPER: DATE PICKER (KALENDER) ---
+  Widget _buildDatePickerField(String label, TextEditingController controller, BuildContext context) {
+    return TextFormField(
+      controller: controller,
+      readOnly: true, // Tidak bisa diketik manual
+      onTap: () => _selectDate(context), // Buka kalender saat diklik
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: const Icon(Icons.calendar_today),
+        suffixIcon: const Icon(Icons.arrow_drop_down),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+        filled: true,
+        fillColor: Colors.grey[50],
       ),
     );
   }

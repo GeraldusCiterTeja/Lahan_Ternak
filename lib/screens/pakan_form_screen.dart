@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import '../models/pakan.dart';
 import '../services/api_service.dart';
 
 class PakanFormScreen extends StatefulWidget {
@@ -14,166 +14,112 @@ class _PakanFormScreenState extends State<PakanFormScreen> {
   final ApiService apiService = ApiService();
 
   final TextEditingController _jenisController = TextEditingController();
-  final TextEditingController _qtyController = TextEditingController();
+  final TextEditingController _kuantitasController = TextEditingController();
   final TextEditingController _biayaController = TextEditingController();
-  final TextEditingController _keteranganController = TextEditingController();
   final TextEditingController _tanggalController = TextEditingController();
+  final TextEditingController _keteranganController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    // Default tanggal hari ini
-    _tanggalController.text = DateFormat('yyyy-MM-dd').format(DateTime.now());
-  }
+  bool _isSaving = false;
 
-  @override
-  void dispose() {
-    _jenisController.dispose();
-    _qtyController.dispose();
-    _biayaController.dispose();
-    _keteranganController.dispose();
-    _tanggalController.dispose();
-    super.dispose();
-  }
-
-  void _simpanPakan() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    // Tampilkan loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
+  Future<void> _selectDate(BuildContext context) async {
+    DateTime? picked = await showDatePicker(
+      context: context, 
+      initialDate: DateTime.now(), 
+      firstDate: DateTime(2000), 
+      lastDate: DateTime.now(),
+      // Menyesuaikan tema Kalender jadi Hijau
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF2E7D32), // HIJAU
+              onPrimary: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
-
-    final data = {
-      "tanggal_input": _tanggalController.text,
-      "jenis_pakan": _jenisController.text,
-      "kuantitas_kg": _qtyController.text,
-      "biaya_rp": _biayaController.text,
-      "keterangan": _keteranganController.text,
-    };
-
-    final success = await apiService.createPakan(data);
-
-    if (!mounted) return;
-    Navigator.pop(context); // Tutup loading
-
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Catatan pakan berhasil disimpan!'), backgroundColor: Colors.green),
-      );
-      Navigator.pop(context, true); // Kembali ke list & refresh
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Gagal menyimpan data pakan.'), backgroundColor: Colors.red),
-      );
+    if (picked != null) {
+      setState(() => _tanggalController.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}");
     }
   }
 
-  InputDecoration _inputDecor(String label, IconData icon) {
-    return InputDecoration(
-      labelText: label,
-      prefixIcon: Icon(icon, color: const Color(0xFF2E7D32)),
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(15)),
-      filled: true,
-      fillColor: Colors.white,
-    );
+  Future<void> _submitForm() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => _isSaving = true);
+
+      Pakan dataInput = Pakan(
+        jenisPakan: _jenisController.text,
+        kuantitas: _kuantitasController.text,
+        biaya: _biayaController.text,
+        tanggal: _tanggalController.text,
+        keterangan: _keteranganController.text,
+      );
+
+      final success = await apiService.createPakan(dataInput);
+
+      setState(() => _isSaving = false);
+      if (!mounted) return;
+
+      if (success) {
+        Navigator.pop(context, true);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Stok pakan berhasil dicatat!'), backgroundColor: Colors.green));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal menyimpan'), backgroundColor: Colors.red));
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7F5),
       appBar: AppBar(
-        title: const Text("Input Log Pakan"),
+        title: const Text("Catat Stok Pakan"),
+        backgroundColor: const Color(0xFF2E7D32), // HIJAU (Konsisten)
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    children: [
-                      // Input Tanggal
-                      TextFormField(
-                        controller: _tanggalController,
-                        readOnly: true,
-                        decoration: _inputDecor('Tanggal Transaksi', Icons.calendar_month_rounded),
-                        onTap: () async {
-                          DateTime? picked = await showDatePicker(
-                            context: context,
-                            initialDate: DateTime.now(),
-                            firstDate: DateTime(2020),
-                            lastDate: DateTime.now(),
-                          );
-                          if (picked != null) {
-                            setState(() => _tanggalController.text = DateFormat('yyyy-MM-dd').format(picked));
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 18),
-                      
-                      // Input Jenis Pakan
-                      TextFormField(
-                        controller: _jenisController,
-                        decoration: _inputDecor('Jenis Pakan', Icons.grass_rounded),
-                        validator: (v) => v!.isEmpty ? 'Jenis pakan wajib diisi' : null,
-                      ),
-                      const SizedBox(height: 18),
-
-                      // Input Kuantitas (Kg)
-                      TextFormField(
-                        controller: _qtyController,
-                        keyboardType: TextInputType.number,
-                        decoration: _inputDecor('Jumlah (Kg)', Icons.scale_rounded),
-                        validator: (v) => v!.isEmpty ? 'Jumlah wajib diisi' : null,
-                      ),
-                      const SizedBox(height: 18),
-
-                      // Input Biaya (Rp)
-                      TextFormField(
-                        controller: _biayaController,
-                        keyboardType: TextInputType.number,
-                        decoration: _inputDecor('Total Biaya (Rp)', Icons.payments_rounded),
-                        validator: (v) => v!.isEmpty ? 'Biaya wajib diisi' : null,
-                      ),
-                      const SizedBox(height: 18),
-
-                      // Input Keterangan
-                      TextFormField(
-                        controller: _keteranganController,
-                        decoration: _inputDecor('Keterangan (Opsional)', Icons.description_rounded),
-                        maxLines: 2,
-                      ),
-                    ],
-                  ),
-                ),
+              _buildTextField("Jenis Pakan (cth: Konsentrat)", _jenisController, icon: Icons.category),
+              const SizedBox(height: 16),
+              _buildTextField("Kuantitas (Kg)", _kuantitasController, icon: Icons.scale, isNumber: true),
+              const SizedBox(height: 16),
+              _buildTextField("Biaya Pembelian (Rp)", _biayaController, icon: Icons.attach_money, isNumber: true),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _tanggalController, readOnly: true, onTap: () => _selectDate(context),
+                decoration: InputDecoration(labelText: "Tanggal Masuk", prefixIcon: const Icon(Icons.calendar_today), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)), filled: true, fillColor: Colors.grey[50]),
+                validator: (val) => val!.isEmpty ? 'Wajib diisi' : null
               ),
-              const SizedBox(height: 30),
+              const SizedBox(height: 16),
+              _buildTextField("Keterangan", _keteranganController, icon: Icons.note, isRequired: false),
+              const SizedBox(height: 24),
               
-              // Tombol Simpan
               SizedBox(
-                width: double.infinity,
-                height: 55,
+                width: double.infinity, 
+                height: 50, 
                 child: ElevatedButton(
+                  onPressed: _isSaving ? null : _submitForm, 
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                  ),
-                  onPressed: _simpanPakan,
-                  child: const Text("SIMPAN LOG PAKAN", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                ),
+                    backgroundColor: const Color(0xFF2E7D32), // HIJAU (Konsisten)
+                    foregroundColor: Colors.white
+                  ), 
+                  child: _isSaving ? const CircularProgressIndicator(color: Colors.white) : const Text("SIMPAN DATA", style: TextStyle(fontWeight: FontWeight.bold))
+                )
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller, {required IconData icon, bool isRequired = true, bool isNumber = false}) {
+    return TextFormField(controller: controller, keyboardType: isNumber ? TextInputType.number : TextInputType.text, decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)), filled: true, fillColor: Colors.grey[50]), validator: isRequired ? (val) => val!.isEmpty ? '$label kosong' : null : null);
   }
 }

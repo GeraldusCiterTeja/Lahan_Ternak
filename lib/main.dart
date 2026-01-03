@@ -53,9 +53,6 @@ class _LahanTernakAppState extends State<LahanTernakApp> {
           elevation: 0,
           backgroundColor: Color(0xFF2E7D32),
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-          ),
         ),
       ),
 

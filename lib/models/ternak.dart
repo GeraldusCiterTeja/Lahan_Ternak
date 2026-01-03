@@ -1,45 +1,59 @@
 class Ternak {
-  final int? idTernak; // Nullable, karena ID di-generate oleh database
+  final int? idTernak;
   final String kodeTag;
   final String jenisTernak;
-  final String tanggalLahir;
-  final String? silsilah;
   final String jenisKelamin;
   final String status;
+  final String tanggalLahir; 
+  final String berat;
+  final String fase;
+  final String silsilah;
 
   Ternak({
     this.idTernak,
     required this.kodeTag,
     required this.jenisTernak,
-    required this.tanggalLahir,
-    this.silsilah,
     required this.jenisKelamin,
     required this.status,
+    this.tanggalLahir = '-', 
+    this.berat = '0',
+    this.fase = '-',
+    this.silsilah = '-',
   });
 
-  // Factory Constructor: Konversi JSON (dari API) ke Objek Dart
   factory Ternak.fromJson(Map<String, dynamic> json) {
     return Ternak(
-      idTernak: int.tryParse(json['id_ternak'].toString()), // Konversi string dari PHP ke int
-      kodeTag: json['kode_tag'] as String,
-      jenisTernak: json['jenis_ternak'] as String,
-      tanggalLahir: json['tanggal_lahir'] as String,
-      silsilah: json['silsilah'] as String?,
-      jenisKelamin: json['jenis_kelamin'] as String,
-      status: json['status'] as String,
+      // Parsing ID agar aman (terima String atau Int)
+      idTernak: json['id_ternak'] != null 
+          ? int.tryParse(json['id_ternak'].toString()) 
+          : null,
+      
+      // Ambil data dengan aman. Jika null, ganti '-'
+      kodeTag: json['kode_tag']?.toString() ?? '-',
+      jenisTernak: json['jenis_ternak']?.toString() ?? '-',
+      jenisKelamin: json['jenis_kelamin']?.toString() ?? '-',
+      status: json['status']?.toString() ?? 'Aktif',
+      
+      // PENTING: Key disini ('tgl_lahir') harus sama dengan PHP
+      tanggalLahir: json['tgl_lahir']?.toString() ?? '-', 
+      
+      berat: json['berat']?.toString() ?? '0',
+      fase: json['fase']?.toString() ?? '-',
+      silsilah: json['silsilah']?.toString() ?? '-',
     );
   }
 
-  // Method: Konversi Objek Dart ke Map/JSON (untuk dikirim ke API)
   Map<String, dynamic> toJson() {
     return {
       'id_ternak': idTernak,
       'kode_tag': kodeTag,
       'jenis_ternak': jenisTernak,
-      'tanggal_lahir': tanggalLahir,
-      'silsilah': silsilah,
       'jenis_kelamin': jenisKelamin,
       'status': status,
+      'tgl_lahir': tanggalLahir, // Kirim ke PHP sebagai tgl_lahir
+      'berat': berat,
+      'fase': fase,
+      'silsilah': silsilah,
     };
   }
 }

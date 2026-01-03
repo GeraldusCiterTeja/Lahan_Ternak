@@ -1,142 +1,155 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+
 import '../models/ternak.dart';
-
-// =================================================================
-// PENTING: Konfigurasi URL API
-// =================================================================
-
-// Ganti IP ini dengan IP lokal Host Anda jika menggunakan Android Emulator, 
-// atau ganti dengan http://lahan-ternak-api.test jika menggunakan Flutter Web di Chrome.
-const String _baseUrl = "http://localhost/lahan_ternak_api"; 
-
+import '../models/pakan.dart';
+import '../models/kesehatan.dart';
+import '../models/reproduksi.dart';
 
 class ApiService {
+  // Pastikan URL ini benar. Jika pakai Android Emulator gunakan 10.0.2.2
+  final String baseUrl = "http://localhost/lahan_ternak_api"; 
 
-  // FUNGSI 1: READ - Mengambil semua data ternak
-  Future<List<Ternak>> fetchTernak() async {
-    final response = await http.get(Uri.parse('$_baseUrl/ternak_read.php'));
-
-    if (response.statusCode == 200) {
-      final jsonResponse = jsonDecode(response.body);
-
-      if (jsonResponse['success'] == true && jsonResponse['data'] != null) {
-        return (jsonResponse['data'] as List)
-            .map((item) => Ternak.fromJson(item))
-            .toList();
-      }
-      return []; 
-    } else {
-      throw Exception('Gagal memuat data ternak. Status Code: ${response.statusCode}');
-    }
-  }
-
-  // FUNGSI 2: CREATE - Menambahkan data ternak baru
-  Future<bool> createTernak(Ternak ternak) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/ternak_create.php'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode(ternak.toJson()),
-    );
-    
-    if (response.statusCode == 201 || response.statusCode == 200) {
-      final jsonResponse = jsonDecode(response.body);
-      return jsonResponse['success'] == true;
-    }
-    return false;
-  }
-
-  // FUNGSI 3: UPDATE - Mengubah data ternak yang sudah ada
-  Future<bool> updateTernak(Ternak ternak) async {
-    final response = await http.put(
-      Uri.parse('$_baseUrl/ternak_update.php'),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode(ternak.toJson()),
-    );
-
-    if (response.statusCode == 200) {
-      final jsonResponse = jsonDecode(response.body);
-      return jsonResponse['success'] == true; 
-    }
-    return false;
-  }
-
-  // FUNGSI 4: DELETE - Menghapus data ternak
-  Future<bool> deleteTernak(int id) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/ternak_delete.php'),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode({"id_ternak": id}),
-    );
-    return jsonDecode(response.body)['success'] == true;
-  }
-
-  // Tambahkan import model kesehatan nanti
-  Future<List<dynamic>> fetchKesehatan() async {
+  // --- HELPER UNTUK DECODE DATA ---
+  List<dynamic> _decodeList(String responseBody, String contextName) {
     try {
-      final response = await http.get(Uri.parse('$_baseUrl/kesehatan_read.php'));
-
-      if (response.statusCode == 200) {
-        // Cek apakah respon benar-benar JSON
-        if (response.body.startsWith('<')) {
-          print("Error dari PHP: ${response.body}"); // Ini akan muncul di Console VS Code
-          throw Exception("Server mengirim HTML, bukan JSON. Cek log PHP.");
-        }
-        
-        final Map<String, dynamic> decoded = jsonDecode(response.body);
-        return decoded['data'] ?? [];
-      } else {
-        throw Exception("Server error: ${response.statusCode}");
+      print("[$contextName] RAW RESPONSE: $responseBody"); // <-- Debugging
+      
+      dynamic decoded = jsonDecode(responseBody);
+      
+      // Kasus 1: Format Langsung List [...]
+      if (decoded is List) {
+        return decoded;
+      } 
+      // Kasus 2: Format Object { "data": [...] }
+      else if (decoded is Map && decoded.containsKey('data')) {
+        return decoded['data'];
+      }
+      // Kasus 3: Error atau Format Salah
+      else {
+        print("[$contextName] Warning: Format JSON bukan List.");
+        return [];
       }
     } catch (e) {
-      print("Caught Error: $e");
+      print("[$contextName] Error Decode JSON: $e");
       return [];
     }
   }
-  Future<bool> createKesehatan(Map<String, dynamic> data) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/kesehatan_create.php'),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(data),
-    );
-    return jsonDecode(response.body)['success'] == true;
-  }
 
-  Future<List<dynamic>> fetchPakan() async {
-    final response = await http.get(Uri.parse('$_baseUrl/pakan_read.php'));
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body)['data'] ?? [];
+  // ===========================================================================
+  // 1. TERNAK
+  // ===========================================================================
+  Future<List<Ternak>> fetchTernak() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/ternak_read.php'));
+      if (response.statusCode == 200) {
+        List<dynamic> body = _decodeList(response.body, "Ternak");
+        return body.map((item) => Ternak.fromJson(item)).toList();
+      } else {
+        throw Exception("Gagal Load Ternak: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Error Fetch Ternak: $e");
+      return [];
     }
-    return [];
+  }
+  
+  // Create, Update, Delete Ternak (Kode sebelumnya...)
+  Future<bool> createTernak(Ternak data) async {
+    final response = await http.post(Uri.parse('$baseUrl/ternak_create.php'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data.toJson()));
+    return response.statusCode == 200;
+  }
+  Future<bool> updateTernak(Ternak data) async {
+    final response = await http.post(Uri.parse('$baseUrl/ternak_update.php'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data.toJson()));
+    return response.statusCode == 200;
+  }
+  Future<bool> deleteTernak(int id) async {
+    final response = await http.post(Uri.parse('$baseUrl/ternak_delete.php'), headers: {'Content-Type': 'application/json'}, body: jsonEncode({'id_ternak': id}));
+    return response.statusCode == 200;
   }
 
-  Future<bool> createPakan(Map<String, dynamic> data) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/pakan_create.php'),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(data),
-    );
-    return jsonDecode(response.body)['success'] == true;
-  }
+  // ===========================================================================
+  // 2. PAKAN (Fokus Perbaikan)
+  // ===========================================================================
+  Future<List<Pakan>> fetchPakan() async {
+    try {
+      final url = Uri.parse('$baseUrl/pakan_read.php');
+      print("[Pakan] Request ke: $url"); // Cek URL
 
-  Future<List<dynamic>> fetchReproduksi() async {
-    final response = await http.get(Uri.parse('$_baseUrl/reproduksi_read.php'));
-    if (response.statusCode == 200) {
-      return jsonDecode(response.body)['data'] ?? [];
+      final response = await http.get(url);
+      
+      if (response.statusCode == 200) {
+        // Decode menggunakan Helper
+        List<dynamic> body = _decodeList(response.body, "Pakan");
+        
+        // Mapping ke Model
+        return body.map((item) {
+          try {
+            return Pakan.fromJson(item);
+          } catch (e) {
+            print("[Pakan] Error Mapping Item: $e | Data: $item");
+            // Kembalikan data dummy/null agar list tetap jalan
+             return Pakan(jenisPakan: 'Error Data', kuantitas: '0', biaya: '0', tanggal: '-', idLog: 0); 
+          }
+        }).toList();
+      } else {
+        print("[Pakan] Server Error: ${response.statusCode}");
+        return [];
+      }
+    } catch (e) {
+      print("[Pakan] Error Fetch: $e");
+      return [];
     }
-    return [];
   }
 
-  Future<bool> createReproduksi(Map<String, dynamic> data) async {
-    final response = await http.post(
-      Uri.parse('$_baseUrl/reproduksi_create.php'),
-      headers: {"Content-Type": "application/json"},
-      body: jsonEncode(data),
-    );
-    return jsonDecode(response.body)['success'] == true;
+  Future<bool> createPakan(Pakan data) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/pakan_create.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(data.toJson()),
+      );
+      print("[Pakan Create] Response: ${response.body}");
+      return response.statusCode == 200;
+    } catch (e) {
+      print("[Pakan Create] Error: $e");
+      return false;
+    }
+  }
+
+  // ===========================================================================
+  // 3. KESEHATAN
+  // ===========================================================================
+  Future<List<Kesehatan>> fetchKesehatan() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/kesehatan_read.php'));
+      if (response.statusCode == 200) {
+        List<dynamic> body = _decodeList(response.body, "Kesehatan");
+        return body.map((item) => Kesehatan.fromJson(item)).toList();
+      } else { return []; }
+    } catch (e) { return []; }
+  }
+
+  Future<bool> createKesehatan(Kesehatan data) async {
+    final response = await http.post(Uri.parse('$baseUrl/kesehatan_create.php'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data.toJson()));
+    return response.statusCode == 200;
+  }
+
+  // ===========================================================================
+  // 4. REPRODUKSI
+  // ===========================================================================
+  Future<List<Reproduksi>> fetchReproduksi() async {
+     try {
+      final response = await http.get(Uri.parse('$baseUrl/reproduksi_read.php'));
+      if (response.statusCode == 200) {
+        List<dynamic> body = _decodeList(response.body, "Reproduksi");
+        return body.map((item) => Reproduksi.fromJson(item)).toList();
+      } else { return []; }
+    } catch (e) { return []; }
+  }
+
+  Future<bool> createReproduksi(Reproduksi data) async {
+    final response = await http.post(Uri.parse('$baseUrl/reproduksi_create.php'), headers: {'Content-Type': 'application/json'}, body: jsonEncode(data.toJson()));
+    return response.statusCode == 200;
   }
 }
