@@ -1,88 +1,60 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'screens/dashboard_screen.dart';
+import 'screens/login_screen.dart';
 
 void main() {
-  runApp(const LahanTernakApp());
+  runApp(const MyApp());
 }
 
-class LahanTernakApp extends StatefulWidget {
-  const LahanTernakApp({super.key});
-
-  static _LahanTernakAppState? of(BuildContext context) =>
-      context.findAncestorStateOfType<_LahanTernakAppState>();
+class MyApp extends StatefulWidget {
+  const MyApp({super.key});
 
   @override
-  State<LahanTernakApp> createState() => _LahanTernakAppState();
+  State<MyApp> createState() => _MyAppState();
 }
 
-class _LahanTernakAppState extends State<LahanTernakApp> {
-  ThemeMode _themeMode = ThemeMode.light;
+class _MyAppState extends State<MyApp> {
+  // Status Login (Null = sedang mengecek, True = sudah login, False = belum)
+  bool? _isLoggedIn;
 
-  void changeTheme(ThemeMode themeMode) {
+  @override
+  void initState() {
+    super.initState();
+    _checkLoginStatus();
+  }
+
+  // Fungsi Cek Login di Memori HP
+  Future<void> _checkLoginStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final status = prefs.getBool('is_logged_in') ?? false;
+    
     setState(() {
-      _themeMode = themeMode;
+      _isLoggedIn = status;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    // Tampilkan Loading putih saat sedang mengecek
+    if (_isLoggedIn == null) {
+      return const MaterialApp(
+        home: Scaffold(body: Center(child: CircularProgressIndicator())),
+      );
+    }
+
     return MaterialApp(
-      title: 'Lahan Ternak App',
       debugShowCheckedModeBanner: false,
-      
-      // --- TEMA TERANG (Light Theme) ---
+      title: 'Lahan Ternak App',
       theme: ThemeData(
+        primaryColor: const Color(0xFF2E7D32),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2E7D32)),
         useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E7D32),
-          primary: const Color(0xFF2E7D32),
-          surface: const Color(0xFFF8FAF8),
-          brightness: Brightness.light,
-        ),
-        // PERBAIKAN: Gunakan CardThemeData di sini
-        cardTheme: CardThemeData( 
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: Colors.grey.shade200),
-          ),
-          color: Colors.white,
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-          backgroundColor: Color(0xFF2E7D32),
-          foregroundColor: Colors.white,
-        ),
       ),
-
-      // --- TEMA GELAP (Dark Theme) ---
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF2E7D32),
-          brightness: Brightness.dark,
-        ),
-        // PERBAIKAN: Gunakan CardThemeData di sini
-        cardTheme: CardThemeData(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: const BorderSide(color: Colors.white10),
-          ),
-          color: const Color(0xFF1E1E1E), // Warna card di mode gelap
-        ),
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-          ),
-        ),
-      ),
-
-      themeMode: _themeMode, 
-      home: const DashboardScreen(),
+      // LOGIKA UTAMA:
+      // Jika sudah login -> Dashboard
+      // Jika belum -> LoginScreen
+      home: _isLoggedIn! ? const DashboardScreen() : const LoginScreen(),
     );
   }
 }
